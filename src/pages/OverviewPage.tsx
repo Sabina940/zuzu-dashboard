@@ -1,5 +1,4 @@
 // src/pages/OverviewPage.tsx
-import React from "react";
 import { useNavigate } from "react-router-dom";
 import type { SensorData, PersonEvent, Reminder } from "../types";
 import { Sparkline } from "../Sparkline";

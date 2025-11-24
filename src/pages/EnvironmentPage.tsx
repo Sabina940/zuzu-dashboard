@@ -1,5 +1,4 @@
 // src/pages/EnvironmentPage.tsx
-import React from "react";
 import type { SensorData } from "../types";
 
 export function EnvironmentPage({ sensor }: { sensor: SensorData }) {

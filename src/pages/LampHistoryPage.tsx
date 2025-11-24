@@ -1,5 +1,5 @@
 // src/pages/LampHistoryPage.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { LampHistoryEntry } from "../types";
 import { API_BASE } from "../config";
 

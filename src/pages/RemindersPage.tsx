@@ -1,5 +1,4 @@
 // src/pages/RemindersPage.tsx
-import React from "react";
 import type { Reminder } from "../types";
 
 interface Props {

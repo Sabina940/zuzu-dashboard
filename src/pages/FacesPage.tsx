@@ -1,5 +1,4 @@
 // src/pages/FacesPage.tsx
-import React from "react";
 import type { PersonEvent } from "../types";
 
 interface Props {
