@@ -74,7 +74,8 @@ export default function App() {
         const res = await fetch(`${API_BASE}/api/lamp`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        setLampOn(Boolean(data.on));
+        const on = Boolean(data.on);
+        setLampOn(on);
       } catch (err) {
         console.error(err);
         setLampError("Could not reach Zuzu lamp API");
@@ -90,11 +91,17 @@ export default function App() {
         const total: number = data.minutes_today ?? 0;
         setLampTodayMinutes(total);
 
-        const buckets = 8;
-        const perBucket = total / buckets;
-        setLampHistorySeries(
-          Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
-        );
+        // Build a 0/1 series from the recent events
+        const events = Array.isArray(data.events) ? data.events : [];
+        let series = events.map((e: { on: boolean }) => (e.on ? 1 : 0));
+
+        // If there is no history yet, just show the current state
+        if (series.length === 0) {
+          series = [lampOn ? 1 : 0];
+        }
+
+        // Keep it short (last 20 points max)
+        setLampHistorySeries(series.slice(-20));
       } catch (err) {
         console.error("Failed to load lamp history", err);
         setLampHistorySeries([]);
@@ -107,8 +114,6 @@ export default function App() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        console.log("ENVIRONMENT DATA:", data); // 👈 temporary debug log
-
         setSensor({
           temperature:
             typeof data.temperature === "number" ? data.temperature : null,
@@ -116,49 +121,49 @@ export default function App() {
         });
       } catch (err) {
         console.error("Failed to fetch environment", err);
-        // keep previous values for now
       }
     };
 
-    // initial load
-      fetchLamp();
-      fetchLampHistory();
-      fetchEnvironment();
+    // ---- initial loads ----
+    fetchLamp();
+    fetchLampHistory();
+    fetchEnvironment();
 
-      // poll environment every 5 seconds
-      const id = setInterval(fetchEnvironment, 5000);
-      return () => clearInterval(id);
-      
-  }, []);
+    // ---- live sensor polling ----
+    const id = setInterval(fetchEnvironment, 5000);
+    return () => clearInterval(id);
+  }, []); // keep deps empty
 
   /* ---- TOGGLE LAMP ---- */
   const handleLampToggle = async () => {
-    try {
-      setLampLoading(true);
-      setLampError(null);
-      const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      const on = Boolean(data.on);
-      setLampOn(on);
+  try {
+    setLampLoading(true);
+    setLampError(null);
+    const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
+      method: "POST",
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const on = Boolean(data.on);
+    setLampOn(on);
 
-      // refresh minutes + sparkline from backend
-      const total: number = data.minutes_today ?? 0;
-      setLampTodayMinutes(total);
-      const buckets = 8;
-      const perBucket = total / buckets;
-      setLampHistorySeries(
-        Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
-      );
-    } catch (err) {
-      console.error(err);
-      setLampError("Failed to toggle lamp");
-    } finally {
-      setLampLoading(false);
-    }
-  };
+    // Update minutes today
+    const total: number = data.minutes_today ?? 0;
+    setLampTodayMinutes(total);
+
+    // Append the new ON/OFF state to the sparkline series
+    setLampHistorySeries((prev) => {
+      const next = [...prev, on ? 1 : 0];
+      // keep only the last 20 points
+      return next.slice(-20);
+    });
+  } catch (err) {
+    console.error(err);
+    setLampError("Failed to toggle lamp");
+  } finally {
+    setLampLoading(false);
+  }
+};
 
   /* ---- REMINDERS ---- */
 
