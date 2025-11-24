@@ -5,7 +5,8 @@ import "./App.css";
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://192.168.0.221:8000";
 
-/* ------------------ TYPES & MOCKS ------------------ */
+/* ------------------ TYPES ------------------ */
+
 interface SensorData {
   temperature: number;
   light: number;
@@ -30,6 +31,8 @@ interface LampHistoryEntry {
   on: boolean;
 }
 
+/* ------------------ MOCKS ------------------ */
+
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
@@ -46,70 +49,71 @@ const mockReminders: Reminder[] = [
   { id: 2, text: "Do laundry", repeatEveryMin: 60, completed: false },
 ];
 
+/* ------------------ ROOT APP ------------------ */
+
 export default function App() {
   const [sensor] = useState<SensorData>(mockSensorData);
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
   const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
 
+  // auth
+  const [user, setUser] = useState<string | null>(null);
+
+  // lamp state
   const [lampOn, setLampOn] = useState(false);
   const [lampLoading, setLampLoading] = useState(false);
   const [lampError, setLampError] = useState<string | null>(null);
 
-  // lamp stats + history
+  // history + “minutes today” for overview
   const [lampTodayMinutes, setLampTodayMinutes] = useState<number | null>(null);
   const [lampHistorySeries, setLampHistorySeries] = useState<number[]>([]);
-  const [lampHistory, setLampHistory] = useState<LampHistoryEntry[]>([]);
 
+  // reminders inputs
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
 
-  /* ---------- HELPERS TO TALK TO BACKEND ---------- */
+  const isAuthed = user !== null;
 
-  async function fetchLamp() {
-    try {
-      setLampError(null);
-      const res = await fetch(`${API_BASE}/api/lamp`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setLampOn(Boolean(data.on));
-    } catch (err) {
-      console.error(err);
-      setLampError("Could not reach Zuzu lamp API");
-    }
-  }
-
-  async function fetchLampHistory() {
-    try {
-      const res = await fetch(`${API_BASE}/api/lamp/history`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-
-      // events list from backend
-      setLampHistory(Array.isArray(data.events) ? data.events : []);
-
-      const total = data.minutes_today ?? 0;
-      setLampTodayMinutes(total);
-
-      // tiny sparkline series from total minutes
-      const buckets = 8;
-      const perBucket = total / buckets;
-      setLampHistorySeries(
-        Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
-      );
-    } catch (err) {
-      console.error("Failed to load lamp history", err);
-      setLampHistorySeries([]);
-      setLampHistory([]);
-    }
-  }
-
-  // initial load
+  /* ---- INITIAL FETCHES (lamp state + minutes today) ---- */
   useEffect(() => {
+    const fetchLamp = async () => {
+      try {
+        setLampError(null);
+        const res = await fetch(`${API_BASE}/api/lamp`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setLampOn(Boolean(data.on));
+      } catch (err) {
+        console.error(err);
+        setLampError("Could not reach Zuzu lamp API");
+      }
+    };
+
+    const fetchLampHistory = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/lamp/history`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const total: number = data.minutes_today ?? 0;
+        setLampTodayMinutes(total);
+
+        const buckets = 8;
+        const perBucket = total / buckets;
+        setLampHistorySeries(
+          Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
+        );
+      } catch (err) {
+        console.error("Failed to load lamp history", err);
+        setLampHistorySeries([]);
+      }
+    };
+
     fetchLamp();
     fetchLampHistory();
   }, []);
 
-  // ---- TOGGLE LAMP ----
+  /* ---- TOGGLE LAMP ---- */
   const handleLampToggle = async () => {
     try {
       setLampLoading(true);
@@ -122,8 +126,14 @@ export default function App() {
       const on = Boolean(data.on);
       setLampOn(on);
 
-      // refresh minutes + history from backend
-      await fetchLampHistory();
+      // refresh minutes + sparkline from backend
+      const total: number = data.minutes_today ?? 0;
+      setLampTodayMinutes(total);
+      const buckets = 8;
+      const perBucket = total / buckets;
+      setLampHistorySeries(
+        Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
+      );
     } catch (err) {
       console.error(err);
       setLampError("Failed to toggle lamp");
@@ -132,7 +142,7 @@ export default function App() {
     }
   };
 
-  /* ---------- REMINDERS & FACES ---------- */
+  /* ---- REMINDERS ---- */
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -156,13 +166,17 @@ export default function App() {
     );
   }
 
+  /* ---- FACES ---- */
+
   function renamePerson(index: number, newName: string) {
     setPeople((prev) =>
       prev.map((p, i) => (i === index ? { ...p, person: newName } : p))
     );
   }
 
-  /* ------------------ LAYOUT ------------------ */
+  function handleLogout() {
+    setUser(null);
+  }
 
   return (
     <div className="page">
@@ -174,106 +188,162 @@ export default function App() {
             <p className="subtitle">Your friendly room robot control center</p>
           </div>
 
-          <button
-            className={`lamp-badge ${lampOn ? "on" : "off"}`}
-            onClick={handleLampToggle}
-            disabled={lampLoading}
-          >
-            {lampLoading
-              ? "⏳ Talking to Zuzu..."
-              : lampOn
-              ? "Lamp ON"
-              : "Lamp OFF"}
-          </button>
-          {lampError && <p className="lamp-error">{lampError}</p>}
-        </header>
+          <div className="header-right">
+            {isAuthed && (
+              <span className="user-badge">
+                Logged in as <strong>{user}</strong>
+              </span>
+            )}
 
-        {/* NAVIGATION */}
-        <nav className="nav">
-          <NavLink
-            to="/"
-            end
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            Overview
-          </NavLink>
-          <NavLink
-            to="/environment"
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            Environment
-          </NavLink>
-          <NavLink
-            to="/faces"
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            Faces
-          </NavLink>
-          <NavLink
-            to="/reminders"
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            Reminders
-          </NavLink>
-          <NavLink
-            to="/lamp-history"
-            className={({ isActive }) =>
-              isActive ? "nav-link active" : "nav-link"
-            }
-          >
-            Lamp history
-          </NavLink>
-        </nav>
+            <button
+              className={`lamp-badge ${lampOn ? "on" : "off"}`}
+              onClick={handleLampToggle}
+              disabled={lampLoading || !isAuthed}
+            >
+              {!isAuthed
+                ? "Login to control lamp"
+                : lampLoading
+                ? "⏳ Talking to Zuzu..."
+                : lampOn
+                ? "Lamp ON"
+                : "Lamp OFF"}
+            </button>
+          </div>
+        </header>
+        {lampError && <p className="lamp-error">{lampError}</p>}
+
+        {/* NAVIGATION (only when logged in) */}
+        {isAuthed && (
+          <nav className="nav">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Overview
+            </NavLink>
+            <NavLink
+              to="/environment"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Environment
+            </NavLink>
+            <NavLink
+              to="/faces"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Faces
+            </NavLink>
+            <NavLink
+              to="/reminders"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Reminders
+            </NavLink>
+            <NavLink
+              to="/lamp-history"
+              className={({ isActive }) =>
+                isActive ? "nav-link active" : "nav-link"
+              }
+            >
+              Lamp history
+            </NavLink>
+
+            <button className="nav-link logout" onClick={handleLogout}>
+              Logout
+            </button>
+          </nav>
+        )}
 
         {/* PAGES */}
         <main className="main">
           <Routes>
+            {/* PUBLIC: login */}
+            <Route
+              path="/login"
+              element={<LoginPage onLoginSuccess={setUser} />}
+            />
+
+            {/* PRIVATE ROUTES */}
             <Route
               path="/"
               element={
-                <OverviewPage
-                  sensor={sensor}
-                  people={people}
-                  reminders={reminders}
-                  lampOn={lampOn}
-                  lampTodayMinutes={lampTodayMinutes}
-                  lampHistorySeries={lampHistorySeries}
-                />
+                <RequireAuth user={user}>
+                  <OverviewPage
+                    sensor={sensor}
+                    people={people}
+                    reminders={reminders}
+                    lampOn={lampOn}
+                    lampTodayMinutes={lampTodayMinutes}
+                    lampHistorySeries={lampHistorySeries}
+                  />
+                </RequireAuth>
               }
             />
             <Route
               path="/environment"
-              element={<EnvironmentPage sensor={sensor} />}
+              element={
+                <RequireAuth user={user}>
+                  <EnvironmentPage sensor={sensor} />
+                </RequireAuth>
+              }
             />
             <Route
               path="/faces"
-              element={<FacesPage people={people} onRename={renamePerson} />}
+              element={
+                <RequireAuth user={user}>
+                  <FacesPage people={people} onRename={renamePerson} />
+                </RequireAuth>
+              }
             />
             <Route
               path="/reminders"
               element={
-                <RemindersPage
-                  reminders={reminders}
-                  newReminder={newReminder}
-                  repeatMinutes={repeatMinutes}
-                  setNewReminder={setNewReminder}
-                  setRepeatMinutes={setRepeatMinutes}
-                  onAdd={addReminder}
-                  onComplete={completeReminder}
-                />
+                <RequireAuth user={user}>
+                  <RemindersPage
+                    reminders={reminders}
+                    newReminder={newReminder}
+                    repeatMinutes={repeatMinutes}
+                    setNewReminder={setNewReminder}
+                    setRepeatMinutes={setRepeatMinutes}
+                    onAdd={addReminder}
+                    onComplete={completeReminder}
+                  />
+                </RequireAuth>
               }
             />
             <Route
               path="/lamp-history"
-              element={<LampHistoryPage history={lampHistory} />}
+              element={
+                <RequireAuth user={user}>
+                  <LampHistoryPage />
+                </RequireAuth>
+              }
+            />
+
+            {/* fallback */}
+            <Route
+              path="*"
+              element={
+                <RequireAuth user={user}>
+                  <OverviewPage
+                    sensor={sensor}
+                    people={people}
+                    reminders={reminders}
+                    lampOn={lampOn}
+                    lampTodayMinutes={lampTodayMinutes}
+                    lampHistorySeries={lampHistorySeries}
+                  />
+                </RequireAuth>
+              }
             />
           </Routes>
         </main>
@@ -282,7 +352,119 @@ export default function App() {
   );
 }
 
-/* ------------------ SHARED UI ------------------ */
+/* ------------------ AUTH GUARD ------------------ */
+
+function RequireAuth({
+  user,
+  children,
+}: {
+  user: string | null;
+  children: JSX.Element;
+}) {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  if (!user) return null; // nothing while redirecting
+  return children;
+}
+
+/* ------------------ LOGIN PAGE ------------------ */
+
+function LoginPage({
+  onLoginSuccess,
+}: {
+  onLoginSuccess: (name: string) => void;
+}) {
+  const [password, setPassword] = useState("");
+  const [status, setStatus] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const SECRET_PASSWORD = "zuzu123"; // change this!
+
+  const handlePasswordLogin = () => {
+    if (!password) return;
+    if (password === SECRET_PASSWORD) {
+      onLoginSuccess("Pierina");
+      setStatus(null);
+      navigate("/", { replace: true });
+    } else {
+      setStatus("Wrong password.");
+    }
+  };
+
+  const handleRfidLogin = async () => {
+    try {
+      setLoading(true);
+      setStatus("Checking key… tap the key on the reader.");
+      const res = await fetch(`${API_BASE}/api/rfid/login`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        setStatus("Key not accepted. Try again.");
+        return;
+      }
+      const data = await res.json();
+      const name = data.user || "Pierina";
+      onLoginSuccess(name);
+      setStatus(null);
+      navigate("/", { replace: true });
+    } catch (err) {
+      console.error(err);
+      setStatus("Could not reach RFID login API.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="page-content fade-in">
+      <h2 className="section-title">Login</h2>
+      <p className="section-description">
+        Unlock Zuzu’s dashboard with your RFID key or a password.
+      </p>
+
+      <div className="login-grid">
+        <div className="card">
+          <h3>Login with RFID key</h3>
+          <p className="section-description">
+            Hold your key fob on the reader and press the button.
+          </p>
+          <button
+            className="button-small"
+            onClick={handleRfidLogin}
+            disabled={loading}
+          >
+            {loading ? "Waiting for key…" : "Login with key"}
+          </button>
+        </div>
+
+        <div className="card">
+          <h3>Login with password</h3>
+          <input
+            className="input"
+            type="password"
+            placeholder="Password…"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button className="button-small" onClick={handlePasswordLogin}>
+            Login
+          </button>
+        </div>
+      </div>
+
+      {status && <p className="status-text">{status}</p>}
+    </div>
+  );
+}
+
+/* ------------------ PAGES ------------------ */
 
 function Sparkline({
   data,
@@ -298,10 +480,8 @@ function Sparkline({
 
   const points = data
     .map((value, index) => {
-      const x =
-        data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
-      const normalized =
-        max === min ? 0.5 : (value - min) / (max - min);
+      const x = data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
+      const normalized = max === min ? 0.5 : (value - min) / (max - min);
       const y = 100 - normalized * 100;
       return `${x},${y}`;
     })
@@ -320,8 +500,6 @@ function Sparkline({
     </svg>
   );
 }
-
-/* ------------------ PAGES ------------------ */
 
 function OverviewPage({
   sensor,
@@ -345,13 +523,14 @@ function OverviewPage({
   const remindersDone = reminders.filter((r) => r.completed).length;
   const totalReminders = reminders.length;
 
-  const homeHistory = [2, 4, 5, 3, 6, 7, 5];
+  const homeHistory = [2, 4, 5, 3, 6, 7, 5]; // mock
   const lampSeries = lampHistorySeries.length ? lampHistorySeries : [0];
-  const reminderHistory = [0, 1, 2, 2, 3, 4];
+  const reminderHistory = [0, 1, 2, 2, 3, 4]; // mock
 
   const minutes = lampTodayMinutes ?? 0;
   const hoursPart = Math.floor(minutes / 60);
   const minsPart = Math.round(minutes % 60);
+
   const lampDisplay =
     minutes === 0
       ? "0 min"
@@ -451,48 +630,6 @@ function OverviewPage({
   );
 }
 
-function LampHistoryPage({ history }: { history: LampHistoryEntry[] }) {
-  return (
-    <div className="page-content fade-in">
-      <h2 className="section-title">Lamp history</h2>
-      <p className="section-description">
-        Every time the lamp turned ON or OFF (from this server session).
-      </p>
-
-      {history.length === 0 ? (
-        <p>No events yet. Toggle the lamp to start building history.</p>
-      ) : (
-        <div className="history-list">
-          {history
-            .slice()
-            .reverse()
-            .map((e, idx) => {
-              const dt = new Date(e.timestamp);
-              const timeStr = dt.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-              });
-              return (
-                <div key={idx} className="list-item">
-                  <span
-                    className={
-                      "tag " + (e.on ? "tag-on" : "tag-off")
-                    }
-                  >
-                    {e.on ? "ON" : "OFF"}
-                  </span>
-                  <span className="history-time">{timeStr}</span>
-                </div>
-              );
-            })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* existing EnvironmentPage, FacesPage, RemindersPage stay as in your version */
-
 function EnvironmentPage({ sensor }: { sensor: SensorData }) {
   return (
     <div className="page-content fade-in">
@@ -536,6 +673,7 @@ function FacesPage({
         can label them. For now, this is a mock view you can edit.
       </p>
 
+      {/* CAMERA PREVIEW MOCK */}
       <div className="camera-preview">
         <div className="camera-header">
           <span className="camera-title">Camera preview</span>
@@ -546,8 +684,8 @@ function FacesPage({
 
         <div className="camera-frame">
           <span className="camera-placeholder">
-            📷 Zuzu will show your room here once the Raspberry&nbsp;Pi camera is
-            connected.
+            📷 Zuzu will show your room here once the Raspberry&nbsp;Pi camera
+            is connected.
           </span>
         </div>
 
@@ -561,6 +699,7 @@ function FacesPage({
         </div>
       </div>
 
+      {/* PEOPLE LIST WITH SMALL IMAGES */}
       {people.map((p, index) => (
         <div key={index} className="list-item faces-item">
           <div className="face-avatar">
@@ -644,6 +783,62 @@ function RemindersPage({
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+/* -------- Lamp history page (separate) -------- */
+
+function LampHistoryPage() {
+  const [events, setEvents] = useState<LampHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/lamp/history`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setEvents(data.events || []);
+      } catch (err) {
+        console.error("Failed to load lamp history", err);
+        setEvents([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  return (
+    <div className="page-content fade-in">
+      <h2 className="section-title">Lamp history</h2>
+      <p className="section-description">
+        Every time the lamp turned ON or OFF (from this server session).
+      </p>
+
+      {loading && <p>Loading history…</p>}
+
+      {!loading && events.length === 0 && (
+        <p>No events yet. Toggle the lamp to start building history.</p>
+      )}
+
+      {events.map((e, idx) => {
+        const t = new Date(e.timestamp);
+        const timeStr = t.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+
+        return (
+          <div key={idx} className="list-item lamp-event">
+            <span className={`tag ${e.on ? "on" : "off"}`}>
+              {e.on ? "ON" : "OFF"}
+            </span>
+            <span className="lamp-event-time">{timeStr}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
