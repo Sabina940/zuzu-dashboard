@@ -1,6 +1,4 @@
 // src/components/Sparkline.tsx
-import React from "react";
-
 export function Sparkline({
   data,
   color = "#4a6cff",
