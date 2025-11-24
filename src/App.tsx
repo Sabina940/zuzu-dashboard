@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { NavLink, Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://192.168.0.221:8000";
 
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL || "http://192.168.0.221:8000";
 
 /* ------------------ TYPES & MOCKS ------------------ */
 interface SensorData {
@@ -14,7 +15,7 @@ interface SensorData {
 interface PersonEvent {
   time: string;
   person: string;
-  snapshotUrl?: string;   // ← new, optional
+  snapshotUrl?: string;
 }
 
 interface Reminder {
@@ -53,12 +54,45 @@ export default function App() {
   const [lampOn, setLampOn] = useState(false);
   const [lampLoading, setLampLoading] = useState(false);
   const [lampError, setLampError] = useState<string | null>(null);
+
+  // history + “minutes today”
   const [lampHistory, setLampHistory] = useState<LampHistoryEntry[]>([]);
+  const [lampTodayMinutes, setLampTodayMinutes] = useState<number | null>(null);
+  const [lampHistorySeries, setLampHistorySeries] = useState<number[]>([]);
 
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
 
+  // ---- FETCH LAMP HISTORY (from /api/lamp/history) ----
+  async function fetchLampHistory() {
+    try {
+      const res = await fetch(`${API_BASE}/api/lamp/history`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
 
+      // Expect backend like: { minutes_today: number, events: LampHistoryEntry[] }
+      if (Array.isArray(data.events)) {
+        setLampHistory(data.events);
+      }
+
+      const minutes =
+        typeof data.minutes_today === "number" ? data.minutes_today : null;
+      setLampTodayMinutes(minutes);
+
+      const total = minutes ?? 0;
+      const buckets = 8;
+      const perBucket = total / buckets;
+
+      setLampHistorySeries(
+        Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
+      );
+    } catch (err) {
+      console.error("Failed to load lamp history", err);
+      setLampHistorySeries([]);
+    }
+  }
+
+  // ---- INITIAL FETCHES ----
   useEffect(() => {
     const fetchLamp = async () => {
       try {
@@ -73,42 +107,35 @@ export default function App() {
       }
     };
 
-    const fetchLampHistory = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/lamp/history`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setLampHistory(data);
-      } catch (err) {
-        console.error("Failed to load lamp history", err);
-      }
-    };
-
     fetchLamp();
     fetchLampHistory();
   }, []);
 
-    const handleLampToggle = async () => {
-      try {
-        setLampLoading(true);
-        setLampError(null);
-        const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
-          method: "POST",
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const on = Boolean(data.on);
-        setLampOn(on);
+  // ---- TOGGLE LAMP ----
+  const handleLampToggle = async () => {
+    try {
+      setLampLoading(true);
+      setLampError(null);
+      const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const on = Boolean(data.on);
+      setLampOn(on);
 
-        const now = new Date().toISOString();
-        setLampHistory((prev) => [...prev, { timestamp: now, on }]);
-      } catch (err) {
-        console.error(err);
-        setLampError("Failed to toggle lamp");
-      } finally {
-        setLampLoading(false);
-      }
-    };
+      const now = new Date().toISOString();
+      setLampHistory((prev) => [...prev, { timestamp: now, on }]);
+
+      // refresh minutes + sparkline from backend
+      fetchLampHistory();
+    } catch (err) {
+      console.error(err);
+      setLampError("Failed to toggle lamp");
+    } finally {
+      setLampLoading(false);
+    }
+  };
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -132,7 +159,6 @@ export default function App() {
     );
   }
 
-  // For Faces page – later this will be real labels from the model
   function renamePerson(index: number, newName: string) {
     setPeople((prev) =>
       prev.map((p, i) => (i === index ? { ...p, person: newName } : p))
@@ -165,24 +191,37 @@ export default function App() {
 
         {/* NAVIGATION */}
         <nav className="nav">
-          <NavLink to="/" end className={({ isActive }) =>
-            isActive ? "nav-link active" : "nav-link"
-          }>
+          <NavLink
+            to="/"
+            end
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
             Overview
           </NavLink>
-          <NavLink to="/environment" className={({ isActive }) =>
-            isActive ? "nav-link active" : "nav-link"
-          }>
+          <NavLink
+            to="/environment"
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
             Environment
           </NavLink>
-          <NavLink to="/faces" className={({ isActive }) =>
-            isActive ? "nav-link active" : "nav-link"
-          }>
+          <NavLink
+            to="/faces"
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
             Faces
           </NavLink>
-          <NavLink to="/reminders" className={({ isActive }) =>
-            isActive ? "nav-link active" : "nav-link"
-          }>
+          <NavLink
+            to="/reminders"
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
             Reminders
           </NavLink>
         </nav>
@@ -198,7 +237,8 @@ export default function App() {
                   people={people}
                   reminders={reminders}
                   lampOn={lampOn}
-                  lampHistory={lampHistory}
+                  lampTodayMinutes={lampTodayMinutes}
+                  lampHistorySeries={lampHistorySeries}
                 />
               }
             />
@@ -233,8 +273,6 @@ export default function App() {
 
 /* ------------------ PAGES ------------------ */
 
-// 👉 put this near your other component functions, e.g. above OverviewPage
-
 function Sparkline({
   data,
   color = "#4a6cff",
@@ -259,11 +297,7 @@ function Sparkline({
     .join(" ");
 
   return (
-    <svg
-      className="sparkline"
-      viewBox="0 0 100 30"
-      preserveAspectRatio="none"
-    >
+    <svg className="sparkline" viewBox="0 0 100 30" preserveAspectRatio="none">
       <polyline
         fill="none"
         stroke={color}
@@ -281,13 +315,15 @@ function OverviewPage({
   people,
   reminders,
   lampOn,
-  lampHistory,
+  lampTodayMinutes,
+  lampHistorySeries,
 }: {
   sensor: SensorData;
   people: PersonEvent[];
   reminders: Reminder[];
   lampOn: boolean;
-  lampHistory: LampHistoryEntry[];
+  lampTodayMinutes: number | null;
+  lampHistorySeries: number[];
 }) {
   const navigate = useNavigate();
 
@@ -296,10 +332,16 @@ function OverviewPage({
   const remindersDone = reminders.filter((r) => r.completed).length;
   const totalReminders = reminders.length;
 
-  // Mock history data for sparklines (later: real data from backend)
-  const homeHistory = [2, 4, 5, 3, 6, 7, 5];       // hours at home per day
-  const lampSeries = lampHistory.map((entry) => (entry.on ? 1 : 0));  // hours lamp on
-  const reminderHistory = [0, 1, 2, 2, 3, 4];      // cumulative reminders done
+  const homeHistory = [2, 4, 5, 3, 6, 7, 5]; // mock for now
+
+  const minutes = lampTodayMinutes ?? 0;
+  const hoursPart = Math.floor(minutes / 60);
+  const minsPart = minutes % 60;
+
+  const lampDisplay =
+    minutes === 0
+      ? "0 min"
+      : `${hoursPart ? `${hoursPart}h ` : ""}${minsPart}m`;
 
   return (
     <div className="page-content fade-in">
@@ -343,11 +385,14 @@ function OverviewPage({
           onClick={() => navigate("/environment")}
         >
           <span className="mini-label">Lamp on today</span>
-          <span className="mini-value">1h 35m</span>
+          <span className="mini-value">{lampDisplay}</span>
           <span className="mini-sub">
             currently <strong>{lampOn ? "ON" : "OFF"}</strong>
           </span>
-          <Sparkline data={lampSeries.length ? lampSeries : [0]} color="#fbbf24" />
+          <Sparkline
+            data={lampHistorySeries.length ? lampHistorySeries : [0]}
+            color="#fbbf24"
+          />
         </div>
 
         <div
@@ -363,7 +408,7 @@ function OverviewPage({
               ? "All caught up 💪"
               : "Keep going!"}
           </span>
-          <Sparkline data={reminderHistory} color="#4a6cff" />
+          <Sparkline data={[0, 1, 2, 2, 3, 4]} color="#4a6cff" />
         </div>
       </div>
 
@@ -464,7 +509,6 @@ function FacesPage({
         </div>
       </div>
 
-      
       {/* PEOPLE LIST WITH SMALL IMAGES */}
       {people.map((p, index) => (
         <div key={index} className="list-item faces-item">
@@ -541,10 +585,7 @@ function RemindersPage({
           </span>
 
           {!r.completed ? (
-            <button
-              onClick={() => onComplete(r.id)}
-              className="button-small"
-            >
+            <button onClick={() => onComplete(r.id)} className="button-small">
               Done
             </button>
           ) : (
