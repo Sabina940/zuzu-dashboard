@@ -25,6 +25,11 @@ interface Reminder {
   completed: boolean;
 }
 
+interface LampHistoryEntry {
+  timestamp: string;
+  on: boolean;
+}
+
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
@@ -41,8 +46,6 @@ const mockReminders: Reminder[] = [
   { id: 2, text: "Do laundry", repeatEveryMin: 60, completed: false },
 ];
 
-/* ------------------ APP ROOT ------------------ */
-
 export default function App() {
   const [sensor] = useState<SensorData>(mockSensorData);
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
@@ -52,24 +55,42 @@ export default function App() {
   const [lampLoading, setLampLoading] = useState(false);
   const [lampError, setLampError] = useState<string | null>(null);
 
-  // history + “minutes today”
+  // lamp stats + history
   const [lampTodayMinutes, setLampTodayMinutes] = useState<number | null>(null);
   const [lampHistorySeries, setLampHistorySeries] = useState<number[]>([]);
+  const [lampHistory, setLampHistory] = useState<LampHistoryEntry[]>([]);
 
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
 
-  // ---- SHARED: LOAD LAMP HISTORY (minutes + sparkline) ----
-  const refreshLampHistory = async () => {
+  /* ---------- HELPERS TO TALK TO BACKEND ---------- */
+
+  async function fetchLamp() {
+    try {
+      setLampError(null);
+      const res = await fetch(`${API_BASE}/api/lamp`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setLampOn(Boolean(data.on));
+    } catch (err) {
+      console.error(err);
+      setLampError("Could not reach Zuzu lamp API");
+    }
+  }
+
+  async function fetchLampHistory() {
     try {
       const res = await fetch(`${API_BASE}/api/lamp/history`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // assume backend returns { minutes_today: number }
+      // events list from backend
+      setLampHistory(Array.isArray(data.events) ? data.events : []);
+
       const total = data.minutes_today ?? 0;
       setLampTodayMinutes(total);
 
+      // tiny sparkline series from total minutes
       const buckets = 8;
       const perBucket = total / buckets;
       setLampHistorySeries(
@@ -78,26 +99,14 @@ export default function App() {
     } catch (err) {
       console.error("Failed to load lamp history", err);
       setLampHistorySeries([]);
+      setLampHistory([]);
     }
-  };
+  }
 
-  // ---- INITIAL FETCHES ----
+  // initial load
   useEffect(() => {
-    const fetchLamp = async () => {
-      try {
-        setLampError(null);
-        const res = await fetch(`${API_BASE}/api/lamp`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setLampOn(Boolean(data.on));
-      } catch (err) {
-        console.error(err);
-        setLampError("Could not reach Zuzu lamp API");
-      }
-    };
-
     fetchLamp();
-    refreshLampHistory();
+    fetchLampHistory();
   }, []);
 
   // ---- TOGGLE LAMP ----
@@ -105,18 +114,16 @@ export default function App() {
     try {
       setLampLoading(true);
       setLampError(null);
-
       const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
         method: "POST",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
       const data = await res.json();
       const on = Boolean(data.on);
       setLampOn(on);
 
-      // refresh minutes + sparkline from backend
-      await refreshLampHistory();
+      // refresh minutes + history from backend
+      await fetchLampHistory();
     } catch (err) {
       console.error(err);
       setLampError("Failed to toggle lamp");
@@ -125,7 +132,7 @@ export default function App() {
     }
   };
 
-  /* ---- REMINDERS ---- */
+  /* ---------- REMINDERS & FACES ---------- */
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -149,13 +156,13 @@ export default function App() {
     );
   }
 
-  /* ---- FACES ---- */
-
   function renamePerson(index: number, newName: string) {
     setPeople((prev) =>
       prev.map((p, i) => (i === index ? { ...p, person: newName } : p))
     );
   }
+
+  /* ------------------ LAYOUT ------------------ */
 
   return (
     <div className="page">
@@ -216,6 +223,14 @@ export default function App() {
           >
             Reminders
           </NavLink>
+          <NavLink
+            to="/lamp-history"
+            className={({ isActive }) =>
+              isActive ? "nav-link active" : "nav-link"
+            }
+          >
+            Lamp history
+          </NavLink>
         </nav>
 
         {/* PAGES */}
@@ -256,6 +271,10 @@ export default function App() {
                 />
               }
             />
+            <Route
+              path="/lamp-history"
+              element={<LampHistoryPage history={lampHistory} />}
+            />
           </Routes>
         </main>
       </div>
@@ -263,7 +282,7 @@ export default function App() {
   );
 }
 
-/* ------------------ PAGES ------------------ */
+/* ------------------ SHARED UI ------------------ */
 
 function Sparkline({
   data,
@@ -279,10 +298,11 @@ function Sparkline({
 
   const points = data
     .map((value, index) => {
-      const x = data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
+      const x =
+        data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
       const normalized =
-        max === min ? 0.5 : (value - min) / (max - min); // 0–1
-      const y = 100 - normalized * 100; // invert for SVG
+        max === min ? 0.5 : (value - min) / (max - min);
+      const y = 100 - normalized * 100;
       return `${x},${y}`;
     })
     .join(" ");
@@ -300,6 +320,8 @@ function Sparkline({
     </svg>
   );
 }
+
+/* ------------------ PAGES ------------------ */
 
 function OverviewPage({
   sensor,
@@ -323,15 +345,13 @@ function OverviewPage({
   const remindersDone = reminders.filter((r) => r.completed).length;
   const totalReminders = reminders.length;
 
-  // still mock for now
   const homeHistory = [2, 4, 5, 3, 6, 7, 5];
   const lampSeries = lampHistorySeries.length ? lampHistorySeries : [0];
   const reminderHistory = [0, 1, 2, 2, 3, 4];
 
   const minutes = lampTodayMinutes ?? 0;
   const hoursPart = Math.floor(minutes / 60);
-  const minsPart = minutes % 60;
-
+  const minsPart = Math.round(minutes % 60);
   const lampDisplay =
     minutes === 0
       ? "0 min"
@@ -376,12 +396,10 @@ function OverviewPage({
 
         <div
           className="mini-card clickable"
-          onClick={() => navigate("/environment")}
+          onClick={() => navigate("/lamp-history")}
         >
           <span className="mini-label">Lamp on today</span>
-          <span className="mini-value">
-            {lampTodayMinutes !== null ? lampDisplay : "—"}
-          </span>
+          <span className="mini-value">{lampDisplay}</span>
           <span className="mini-sub">
             currently <strong>{lampOn ? "ON" : "OFF"}</strong>
           </span>
@@ -433,6 +451,48 @@ function OverviewPage({
   );
 }
 
+function LampHistoryPage({ history }: { history: LampHistoryEntry[] }) {
+  return (
+    <div className="page-content fade-in">
+      <h2 className="section-title">Lamp history</h2>
+      <p className="section-description">
+        Every time the lamp turned ON or OFF (from this server session).
+      </p>
+
+      {history.length === 0 ? (
+        <p>No events yet. Toggle the lamp to start building history.</p>
+      ) : (
+        <div className="history-list">
+          {history
+            .slice()
+            .reverse()
+            .map((e, idx) => {
+              const dt = new Date(e.timestamp);
+              const timeStr = dt.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+              return (
+                <div key={idx} className="list-item">
+                  <span
+                    className={
+                      "tag " + (e.on ? "tag-on" : "tag-off")
+                    }
+                  >
+                    {e.on ? "ON" : "OFF"}
+                  </span>
+                  <span className="history-time">{timeStr}</span>
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* existing EnvironmentPage, FacesPage, RemindersPage stay as in your version */
+
 function EnvironmentPage({ sensor }: { sensor: SensorData }) {
   return (
     <div className="page-content fade-in">
@@ -476,7 +536,6 @@ function FacesPage({
         can label them. For now, this is a mock view you can edit.
       </p>
 
-      {/* CAMERA PREVIEW MOCK */}
       <div className="camera-preview">
         <div className="camera-header">
           <span className="camera-title">Camera preview</span>
@@ -502,7 +561,6 @@ function FacesPage({
         </div>
       </div>
 
-      {/* PEOPLE LIST WITH SMALL IMAGES */}
       {people.map((p, index) => (
         <div key={index} className="list-item faces-item">
           <div className="face-avatar">
