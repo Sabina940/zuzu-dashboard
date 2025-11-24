@@ -1,5 +1,5 @@
 // src/App.tsx
-import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import { NavLink, Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import type { ReactNode } from "react";
 
@@ -21,6 +21,7 @@ import { LoginPage } from "./pages/LoginPage";
 
 /* ------------------ MOCKS ------------------ */
 
+
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
@@ -38,6 +39,8 @@ const mockReminders: Reminder[] = [
 ];
 
 export default function App() {
+  const location = useLocation();
+  const isLoginRoute = location.pathname === "/login";
   const [sensor] = useState<SensorData>(mockSensorData);
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
   const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
@@ -167,52 +170,55 @@ export default function App() {
   return (
     <div className="page">
       <div className="container">
-        {/* HEADER */}
-        <header className="header">
-          {/* LEFT SIDE — Title + User info */}
-          <div className="header-left">
-            <h1 className="title">Zuzu! Dashboard</h1>
+        {/* HEADER (hidden on /login) */}
+          {!isLoginRoute && (
+            <>
+              <header className="header">
+                {/* LEFT SIDE — Title + User info */}
+                <div className="header-left">
+                  <h1 className="title">Zuzu! Dashboard</h1>
 
-            <div className="user-row">
-              <span className="logged-in-text">
-                {isAuthed ? (
-                  <>
-                    Logged in as <strong>{user}</strong>
-                  </>
-                ) : (
-                  "Not logged in"
-                )}
-              </span>
+                  <div className="user-row">
+                    <span className="logged-in-text">
+                      {isAuthed ? (
+                        <>
+                          Logged in as <strong>{user}</strong>
+                        </>
+                      ) : (
+                        "Not logged in"
+                      )}
+                    </span>
 
-              {isAuthed && (
-                <button className="logout-btn" onClick={handleLogout}>
-                  🔒
-                </button>
-              )}
-            </div>
-          </div>
+                    {isAuthed && (
+                      <button className="logout-btn" onClick={handleLogout}>
+                        🔒
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-          <div className="header-right">
-            <button
-              className={`lamp-badge ${lampOn ? "on" : "off"}`}
-              onClick={handleLampToggle}
-              disabled={lampLoading || !isAuthed}
-            >
-              {!isAuthed
-                ? "Login to control lamp"
-                : lampLoading
-                ? "⏳ Talking to Zuzu..."
-                : lampOn
-                ? "Lamp ON"
-                : "Lamp OFF"}
-            </button>
-          </div>
-        </header>
-
-        {lampError && <p className="lamp-error">{lampError}</p>}
+                <div className="header-right">
+                  <button
+                    className={`lamp-badge ${lampOn ? "on" : "off"}`}
+                    onClick={handleLampToggle}
+                    disabled={lampLoading || !isAuthed}
+                  >
+                    {!isAuthed
+                      ? "Login to control lamp"
+                      : lampLoading
+                      ? "⏳ Talking to Zuzu..."
+                      : lampOn
+                      ? "Lamp ON"
+                      : "Lamp OFF"}
+                  </button>
+                </div>
+              </header>
+              {lampError && <p className="lamp-error">{lampError}</p>}
+            </>
+          )}
 
         {/* NAVIGATION (only when logged in) */}
-        {isAuthed && (
+        {isAuthed && !isLoginRoute && (
           <nav className="nav">
             <NavLink
               to="/"

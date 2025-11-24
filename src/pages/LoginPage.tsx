@@ -13,7 +13,7 @@ export function LoginPage({ onLoginSuccess }: Props) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const SECRET_PASSWORD = "zuzu123"; // change if you want
+  const SECRET_PASSWORD = "zuzu123";
 
   const handlePasswordLogin = () => {
     if (!password) return;
@@ -51,43 +51,51 @@ export function LoginPage({ onLoginSuccess }: Props) {
   };
 
   return (
-    <div className="page-content fade-in">
-      <h2 className="section-title">Login</h2>
-      <p className="section-description">
-        Unlock Zuzu’s dashboard with your RFID key or a password.
-      </p>
+    <div className="login-wrapper fade-in">
+      <h1 className="title">Zuzu! Dashboard</h1>
 
-      <div className="login-grid">
-        <div className="card">
-          <h3>Login with RFID key</h3>
-          <p className="section-description">
-            Hold your key fob on the reader and press the button.
-          </p>
-          <button
-            className="button-small"
-            onClick={handleRfidLogin}
-            disabled={loading}
-          >
-            {loading ? "Waiting for key…" : "Login with key"}
-          </button>
+      <div className="login-card">
+        <h2 className="section-title">Login</h2>
+        <p className="section-description">
+          Unlock Zuzu’s dashboard with your RFID key or a password.
+        </p>
+
+        <div className="login-grid">
+          {/* RFID LOGIN */}
+          <div className="card">
+            <h3>Login with RFID key</h3>
+            <p className="section-description">
+              Hold your key fob on the reader and press the button.
+            </p>
+            <button
+              className="button-small"
+              onClick={handleRfidLogin}
+              disabled={loading}
+            >
+              {loading ? "Waiting for key…" : "Login with key"}
+            </button>
+          </div>
+
+          {/* PASSWORD LOGIN */}
+          <div className="card">
+            <h3>Login with password</h3>
+
+            <input
+              className="input"
+              type="password"
+              placeholder="Password…"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+
+            <button className="button-small login-btn" onClick={handlePasswordLogin}>
+              Login
+            </button>
+          </div>
         </div>
 
-        <div className="card">
-          <h3>Login with password</h3>
-          <input
-            className="input"
-            type="password"
-            placeholder="Password…"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button className="button-small" onClick={handlePasswordLogin}>
-            Login
-          </button>
-        </div>
+        {status && <p className="status-text">{status}</p>}
       </div>
-
-      {status && <p className="status-text">{status}</p>}
     </div>
   );
 }
