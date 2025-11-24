@@ -200,11 +200,7 @@ export default function App() {
           </div>
 
           <div className="header-right">
-            {isAuthed && (
-              <span className="user-badge">
-                Logged in as <strong>{user}</strong>
-              </span>
-            )}
+            
 
             <button
               className={`lamp-badge ${lampOn ? "on" : "off"}`}
