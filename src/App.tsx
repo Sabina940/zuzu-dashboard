@@ -28,7 +28,6 @@ const mockSensorData: SensorData = {
   light: null,
 };
 
-const [sensor, setSensor] = useState<SensorData>(mockSensorData);
 
 
 const mockPeopleEvents: PersonEvent[] = [
