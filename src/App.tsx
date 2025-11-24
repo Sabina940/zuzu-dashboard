@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
-
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://192.168.0.221:8000";
 
 
 /* ------------------ TYPES & MOCKS ------------------ */
@@ -44,14 +44,50 @@ export default function App() {
   const [sensor] = useState<SensorData>(mockSensorData);
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
   const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
+
   const [lampOn, setLampOn] = useState(false);
+  const [lampLoading, setLampLoading] = useState(false);
+  const [lampError, setLampError] = useState<string | null>(null);
+
 
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
 
-  function toggleLamp() {
-    setLampOn((prev) => !prev);
-  }
+
+  useEffect(() => {
+    const fetchLamp = async () => {
+      try {
+        setLampError(null);
+        const res = await fetch(`${API_BASE}/api/lamp`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setLampOn(Boolean(data.on));
+      } catch (err) {
+        console.error(err);
+        setLampError("Could not reach Zuzu lamp API");
+      }
+    };
+
+    fetchLamp();
+  }, []);
+
+    const handleLampToggle = async () => {
+    try {
+      setLampLoading(true);
+      setLampError(null);
+      const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setLampOn(Boolean(data.on));
+    } catch (err) {
+      console.error(err);
+      setLampError("Failed to toggle lamp");
+    } finally {
+      setLampLoading(false);
+    }
+  };
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -94,10 +130,16 @@ export default function App() {
 
           <button
             className={`lamp-badge ${lampOn ? "on" : "off"}`}
-            onClick={toggleLamp}
+            onClick={handleLampToggle}
+            disabled={lampLoading}
           >
-            {lampOn ? "💡 Lamp ON" : "💤 Lamp OFF"}
+            {lampLoading
+              ? "⏳ Talking to Zuzu..."
+              : lampOn
+              ? "Lamp ON"
+              : "Lamp OFF"}
           </button>
+          {lampError && <p className="lamp-error">{lampError}</p>}
         </header>
 
         {/* NAVIGATION */}
