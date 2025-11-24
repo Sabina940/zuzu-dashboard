@@ -24,6 +24,11 @@ interface Reminder {
   completed: boolean;
 }
 
+interface LampHistoryEntry {
+  timestamp: string;
+  on: boolean;
+}
+
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
@@ -48,7 +53,7 @@ export default function App() {
   const [lampOn, setLampOn] = useState(false);
   const [lampLoading, setLampLoading] = useState(false);
   const [lampError, setLampError] = useState<string | null>(null);
-
+  const [lampHistory, setLampHistory] = useState<LampHistoryEntry[]>([]);
 
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
@@ -68,26 +73,42 @@ export default function App() {
       }
     };
 
+    const fetchLampHistory = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/lamp/history`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        setLampHistory(data);
+      } catch (err) {
+        console.error("Failed to load lamp history", err);
+      }
+    };
+
     fetchLamp();
+    fetchLampHistory();
   }, []);
 
     const handleLampToggle = async () => {
-    try {
-      setLampLoading(true);
-      setLampError(null);
-      const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setLampOn(Boolean(data.on));
-    } catch (err) {
-      console.error(err);
-      setLampError("Failed to toggle lamp");
-    } finally {
-      setLampLoading(false);
-    }
-  };
+      try {
+        setLampLoading(true);
+        setLampError(null);
+        const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
+          method: "POST",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        const on = Boolean(data.on);
+        setLampOn(on);
+
+        const now = new Date().toISOString();
+        setLampHistory((prev) => [...prev, { timestamp: now, on }]);
+      } catch (err) {
+        console.error(err);
+        setLampError("Failed to toggle lamp");
+      } finally {
+        setLampLoading(false);
+      }
+    };
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -177,6 +198,7 @@ export default function App() {
                   people={people}
                   reminders={reminders}
                   lampOn={lampOn}
+                  lampHistory={lampHistory}
                 />
               }
             />
@@ -259,11 +281,13 @@ function OverviewPage({
   people,
   reminders,
   lampOn,
+  lampHistory,
 }: {
   sensor: SensorData;
   people: PersonEvent[];
   reminders: Reminder[];
   lampOn: boolean;
+  lampHistory: LampHistoryEntry[];
 }) {
   const navigate = useNavigate();
 
@@ -274,7 +298,7 @@ function OverviewPage({
 
   // Mock history data for sparklines (later: real data from backend)
   const homeHistory = [2, 4, 5, 3, 6, 7, 5];       // hours at home per day
-  const lampHistory = [0.5, 1.2, 0.7, 2.0, 1.5];   // hours lamp on
+  const lampSeries = lampHistory.map((entry) => (entry.on ? 1 : 0));  // hours lamp on
   const reminderHistory = [0, 1, 2, 2, 3, 4];      // cumulative reminders done
 
   return (
@@ -323,7 +347,7 @@ function OverviewPage({
           <span className="mini-sub">
             currently <strong>{lampOn ? "ON" : "OFF"}</strong>
           </span>
-          <Sparkline data={lampHistory} color="#fbbf24" />
+          <Sparkline data={lampSeries.length ? lampSeries : [0]} color="#fbbf24" />
         </div>
 
         <div
