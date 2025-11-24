@@ -1,9 +1,8 @@
 // src/types.ts
 
 export interface SensorData {
-  temperature: number;
-  light: number;
-  humidity: number;
+  temperature: number | null; // °C
+  light: number | null;       // lux
 }
 
 export interface PersonEvent {

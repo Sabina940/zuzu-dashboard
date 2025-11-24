@@ -48,22 +48,22 @@ export function OverviewPage({
       </p>
 
       {/* main sensor cards */}
-      <div className="card-grid">
-        <div className="card card-hover">
-          <h3>Temperature</h3>
-          <p className="value">{sensor.temperature} °C</p>
-        </div>
+        <div className="card-grid">
+          <div className="card card-hover">
+            <h3>Temperature</h3>
+            <p className="value">
+              {sensor.temperature != null ? `${sensor.temperature.toFixed(1)} °C` : "—"}
+            </p>
+          </div>
 
-        <div className="card card-hover">
-          <h3>Light</h3>
-          <p className="value">{sensor.light} lx</p>
-        </div>
+          <div className="card card-hover">
+            <h3>Light</h3>
+            <p className="value">
+              {sensor.light != null ? `${sensor.light.toFixed(0)} lx` : "—"}
+            </p>
+          </div>
 
-        <div className="card card-hover">
-          <h3>Humidity</h3>
-          <p className="value">{sensor.humidity}%</p>
         </div>
-      </div>
 
       {/* clickable mini stats with sparklines */}
       <div className="mini-stats">

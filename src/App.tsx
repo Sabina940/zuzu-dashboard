@@ -25,8 +25,9 @@ import { LoginPage } from "./pages/LoginPage";
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
-  humidity: 45,
 };
+
+const [sensor, setSensor] = useState<SensorData>(mockSensorData);
 
 const mockPeopleEvents: PersonEvent[] = [
   { time: "10:22", person: "Pierina" },
@@ -98,8 +99,32 @@ export default function App() {
       }
     };
 
+    const fetchEnvironment = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/environment`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        // Merge with existing state, fall back to previous values if null
+        setSensor((prev) => ({
+          ...prev,
+          temperature:
+            data.temperature !== null && data.temperature !== undefined
+              ? data.temperature
+              : prev.temperature,
+          light:
+            data.light !== null && data.light !== undefined
+              ? data.light
+              : prev.light,
+          
+        }));
+      } catch (err) {
+        console.error("Failed to load environment data", err);
+      }
+    };
+
     fetchLamp();
     fetchLampHistory();
+    fetchEnvironment();
   }, []);
 
   /* ---- TOGGLE LAMP ---- */
