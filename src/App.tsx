@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import type { ReactNode } from "react";
 import { NavLink, Routes, Route, useNavigate } from "react-router-dom";
 import "./App.css";
 
@@ -359,7 +360,7 @@ function RequireAuth({
   children,
 }: {
   user: string | null;
-  children: JSX.Element;
+  children: ReactNode;
 }) {
   const navigate = useNavigate();
 
@@ -369,9 +370,10 @@ function RequireAuth({
     }
   }, [user, navigate]);
 
-  if (!user) return null; // nothing while redirecting
-  return children;
+    if (!user) return null; // nothing while redirecting
+  return <>{children}</>;
 }
+
 
 /* ------------------ LOGIN PAGE ------------------ */
 
