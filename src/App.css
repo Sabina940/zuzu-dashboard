@@ -423,6 +423,35 @@ body,
 .face-info {
   flex: 1;
 }
+.header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logged-in-text {
+  color: #ccc;
+  font-size: 14px;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 4px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
 
 @keyframes fadeIn {
   from {

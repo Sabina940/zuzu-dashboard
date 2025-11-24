@@ -184,9 +184,19 @@ export default function App() {
       <div className="container">
         {/* HEADER */}
         <header className="header">
-          <div>
+          {/* LEFT SIDE — Title + User info */}
+          <div className="header-left">
             <h1 className="title">Zuzu! Dashboard</h1>
-            <p className="subtitle">Your friendly room robot control center</p>
+
+            <div className="user-row">
+              <span className="logged-in-text">
+                Logged in as <strong>{user}</strong>
+              </span>
+
+              <button className="logout-btn" onClick={handleLogout}>
+                🔒
+              </button>
+            </div>
           </div>
 
           <div className="header-right">
@@ -258,9 +268,7 @@ export default function App() {
               Lamp history
             </NavLink>
 
-            <button className="nav-link logout" onClick={handleLogout}>
-              Logout
-            </button>
+            
           </nav>
         )}
 
