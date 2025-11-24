@@ -22,11 +22,13 @@ import { LoginPage } from "./pages/LoginPage";
 /* ------------------ MOCKS ------------------ */
 
 
+/* ------------------ MOCKS ------------------ */
 const mockSensorData: SensorData = {
-  temperature: 22.5,
-  light: 120,
-  
+  temperature: null,
+  light: null,
 };
+
+const [sensor, setSensor] = useState<SensorData>(mockSensorData);
 
 
 const mockPeopleEvents: PersonEvent[] = [
@@ -101,21 +103,33 @@ export default function App() {
     };
 
     const fetchEnvironment = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/environment`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        setSensor(data);
-      } catch (err) {
-        console.error("Failed to load environment data", err);
-      }
-    };
+        try {
+          const res = await fetch(`${API_BASE}/api/environment`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+
+          setSensor({
+            temperature:
+              typeof data.temperature === "number" ? data.temperature : null,
+            light: typeof data.light === "number" ? data.light : null,
+          });
+        } catch (err) {
+          console.error("Failed to fetch environment", err);
+          // keep previous sensor values, but you could also reset:
+          // setSensor({ temperature: null, light: null });
+        }
+      };
+
+      fetchEnvironment();                    // initial load
+      const id = setInterval(fetchEnvironment, 5000); // every 5s
+
+      return () => clearInterval(id);
 
     
 
     fetchLamp();
     fetchLampHistory();
-    fetchEnvironment();
+   
   }, []);
 
   /* ---- TOGGLE LAMP ---- */

@@ -34,6 +34,10 @@ export function OverviewPage({
   const minutes = lampTodayMinutes ?? 0;
   const hoursPart = Math.floor(minutes / 60);
   const minsPart = Math.round(minutes % 60);
+  const tempDisplay =
+    sensor.temperature != null ? `${sensor.temperature.toFixed(1)} °C` : "—";
+  const lightDisplay =
+    sensor.light != null ? `${sensor.light.toFixed(0)} lx` : "—";
 
   const lampDisplay =
     minutes === 0
@@ -51,16 +55,12 @@ export function OverviewPage({
         <div className="card-grid">
           <div className="card card-hover">
             <h3>Temperature</h3>
-            <p className="value">
-              {sensor.temperature != null ? `${sensor.temperature.toFixed(1)} °C` : "—"}
-            </p>
+            <p className="value">{tempDisplay}</p>
           </div>
 
           <div className="card card-hover">
             <h3>Light</h3>
-            <p className="value">
-              {sensor.light != null ? `${sensor.light.toFixed(0)} lx` : "—"}
-            </p>
+            <p className="value">{lightDisplay}</p>
           </div>
 
         </div>
