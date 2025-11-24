@@ -25,11 +25,6 @@ interface Reminder {
   completed: boolean;
 }
 
-interface LampHistoryEntry {
-  timestamp: string;
-  on: boolean;
-}
-
 const mockSensorData: SensorData = {
   temperature: 22.5,
   light: 120,
@@ -46,6 +41,8 @@ const mockReminders: Reminder[] = [
   { id: 2, text: "Do laundry", repeatEveryMin: 60, completed: false },
 ];
 
+/* ------------------ APP ROOT ------------------ */
+
 export default function App() {
   const [sensor] = useState<SensorData>(mockSensorData);
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
@@ -56,33 +53,25 @@ export default function App() {
   const [lampError, setLampError] = useState<string | null>(null);
 
   // history + “minutes today”
-  const [lampHistory, setLampHistory] = useState<LampHistoryEntry[]>([]);
   const [lampTodayMinutes, setLampTodayMinutes] = useState<number | null>(null);
   const [lampHistorySeries, setLampHistorySeries] = useState<number[]>([]);
 
   const [newReminder, setNewReminder] = useState("");
   const [repeatMinutes, setRepeatMinutes] = useState(30);
 
-  // ---- FETCH LAMP HISTORY (from /api/lamp/history) ----
-  async function fetchLampHistory() {
+  // ---- SHARED: LOAD LAMP HISTORY (minutes + sparkline) ----
+  const refreshLampHistory = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/lamp/history`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
 
-      // Expect backend like: { minutes_today: number, events: LampHistoryEntry[] }
-      if (Array.isArray(data.events)) {
-        setLampHistory(data.events);
-      }
+      // assume backend returns { minutes_today: number }
+      const total = data.minutes_today ?? 0;
+      setLampTodayMinutes(total);
 
-      const minutes =
-        typeof data.minutes_today === "number" ? data.minutes_today : null;
-      setLampTodayMinutes(minutes);
-
-      const total = minutes ?? 0;
       const buckets = 8;
       const perBucket = total / buckets;
-
       setLampHistorySeries(
         Array.from({ length: buckets }, (_, i) => perBucket * (i + 1))
       );
@@ -90,7 +79,7 @@ export default function App() {
       console.error("Failed to load lamp history", err);
       setLampHistorySeries([]);
     }
-  }
+  };
 
   // ---- INITIAL FETCHES ----
   useEffect(() => {
@@ -108,7 +97,7 @@ export default function App() {
     };
 
     fetchLamp();
-    fetchLampHistory();
+    refreshLampHistory();
   }, []);
 
   // ---- TOGGLE LAMP ----
@@ -116,19 +105,18 @@ export default function App() {
     try {
       setLampLoading(true);
       setLampError(null);
+
       const res = await fetch(`${API_BASE}/api/lamp/toggle`, {
         method: "POST",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
       const data = await res.json();
       const on = Boolean(data.on);
       setLampOn(on);
 
-      const now = new Date().toISOString();
-      setLampHistory((prev) => [...prev, { timestamp: now, on }]);
-
       // refresh minutes + sparkline from backend
-      fetchLampHistory();
+      await refreshLampHistory();
     } catch (err) {
       console.error(err);
       setLampError("Failed to toggle lamp");
@@ -136,6 +124,8 @@ export default function App() {
       setLampLoading(false);
     }
   };
+
+  /* ---- REMINDERS ---- */
 
   function addReminder() {
     if (!newReminder.trim()) return;
@@ -158,6 +148,8 @@ export default function App() {
       old.map((r) => (r.id === id ? { ...r, completed: true } : r))
     );
   }
+
+  /* ---- FACES ---- */
 
   function renamePerson(index: number, newName: string) {
     setPeople((prev) =>
@@ -287,8 +279,7 @@ function Sparkline({
 
   const points = data
     .map((value, index) => {
-      const x =
-        data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
+      const x = data.length === 1 ? 0 : (index / (data.length - 1)) * 100;
       const normalized =
         max === min ? 0.5 : (value - min) / (max - min); // 0–1
       const y = 100 - normalized * 100; // invert for SVG
@@ -332,7 +323,10 @@ function OverviewPage({
   const remindersDone = reminders.filter((r) => r.completed).length;
   const totalReminders = reminders.length;
 
-  const homeHistory = [2, 4, 5, 3, 6, 7, 5]; // mock for now
+  // still mock for now
+  const homeHistory = [2, 4, 5, 3, 6, 7, 5];
+  const lampSeries = lampHistorySeries.length ? lampHistorySeries : [0];
+  const reminderHistory = [0, 1, 2, 2, 3, 4];
 
   const minutes = lampTodayMinutes ?? 0;
   const hoursPart = Math.floor(minutes / 60);
@@ -385,14 +379,13 @@ function OverviewPage({
           onClick={() => navigate("/environment")}
         >
           <span className="mini-label">Lamp on today</span>
-          <span className="mini-value">{lampDisplay}</span>
+          <span className="mini-value">
+            {lampTodayMinutes !== null ? lampDisplay : "—"}
+          </span>
           <span className="mini-sub">
             currently <strong>{lampOn ? "ON" : "OFF"}</strong>
           </span>
-          <Sparkline
-            data={lampHistorySeries.length ? lampHistorySeries : [0]}
-            color="#fbbf24"
-          />
+          <Sparkline data={lampSeries} color="#fbbf24" />
         </div>
 
         <div
@@ -408,7 +401,7 @@ function OverviewPage({
               ? "All caught up 💪"
               : "Keep going!"}
           </span>
-          <Sparkline data={[0, 1, 2, 2, 3, 4]} color="#4a6cff" />
+          <Sparkline data={reminderHistory} color="#4a6cff" />
         </div>
       </div>
 
