@@ -1,5 +1,5 @@
 // src/pages/RemindersPage.tsx
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { Reminder } from "../types";
 import {
   apiGetReminders,
