@@ -11,14 +11,13 @@ export interface PersonEvent {
   snapshotUrl?: string;
 }
 
-// src/types.ts
-
 export interface Reminder {
   id: number;
   text: string;
-  interval_min: number;     // how often it repeats
+  interval_min: number;
   completed: boolean;
   last_done_at: string | null;
+  repeatEveryMin: number;
 }
 
 export interface LampHistoryEntry {
