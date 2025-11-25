@@ -35,10 +35,6 @@ const mockPeopleEvents: PersonEvent[] = [
   { time: "08:17", person: "Unknown" },
 ];
 
-const mockReminders: Reminder[] = [
-  { id: 1, text: "Drink water", repeatEveryMin: 30, completed: false },
-  { id: 2, text: "Do laundry", repeatEveryMin: 60, completed: false },
-];
 
 export default function App() {
   const location = useLocation();
@@ -46,8 +42,7 @@ export default function App() {
   const [sensor, setSensor] = useState< SensorData >(mockSensorData);
 
   const [people, setPeople] = useState<PersonEvent[]>(mockPeopleEvents);
-  const [reminders, setReminders] = useState<Reminder[]>(mockReminders);
-
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   // auth
   const [user, setUser] = useState<string | null>(null);
 
@@ -124,10 +119,22 @@ export default function App() {
       }
     };
 
+    const fetchReminders = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/reminders`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: Reminder[] = await res.json();
+        setReminders(data);
+      } catch (err) {
+        console.error("Failed to fetch reminders", err);
+      }
+    };
+
     // ---- initial loads ----
     fetchLamp();
     fetchLampHistory();
     fetchEnvironment();
+    fetchReminders();
 
     // ---- live sensor polling ----
     const id = setInterval(fetchEnvironment, 5000);
@@ -167,26 +174,46 @@ export default function App() {
 
   /* ---- REMINDERS ---- */
 
-  function addReminder() {
-    if (!newReminder.trim()) return;
+  async function addReminder() {
+    const text = newReminder.trim();
+    if (!text) return;
 
-    setReminders((old) => [
-      ...old,
-      {
-        id: Date.now(),
-        text: newReminder,
-        repeatEveryMin: repeatMinutes,
-        completed: false,
-      },
-    ]);
+    try {
+      const res = await fetch(`${API_BASE}/api/reminders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text,
+          repeatEveryMin: repeatMinutes,
+        }),
+      });
 
-    setNewReminder("");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const created: Reminder = await res.json();
+
+      setReminders((old) => [...old, created]);
+      setNewReminder("");
+    } catch (err) {
+      console.error("Failed to add reminder", err);
+    }
   }
 
-  function completeReminder(id: number) {
-    setReminders((old) =>
-      old.map((r) => (r.id === id ? { ...r, completed: true } : r))
-    );
+  async function completeReminder(id: number) {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/reminders/${id}/complete`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const updated: Reminder = await res.json();
+
+      setReminders((old) =>
+        old.map((r) => (r.id === updated.id ? updated : r))
+      );
+    } catch (err) {
+      console.error("Failed to complete reminder", err);
+    }
   }
 
   /* ---- FACES ---- */
