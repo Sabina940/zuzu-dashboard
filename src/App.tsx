@@ -370,15 +370,7 @@ export default function App() {
               path="/reminders"
               element={
                 <RequireAuth user={user}>
-                  <RemindersPage
-                    reminders={reminders}
-                    newReminder={newReminder}
-                    repeatMinutes={repeatMinutes}
-                    setNewReminder={setNewReminder}
-                    setRepeatMinutes={setRepeatMinutes}
-                    onAdd={addReminder}
-                    onComplete={completeReminder}
-                  />
+                  <RemindersPage />
                 </RequireAuth>
               }
             />

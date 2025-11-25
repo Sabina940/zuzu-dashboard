@@ -1,67 +1,129 @@
 // src/pages/RemindersPage.tsx
+import React, { useEffect, useState } from "react";
 import type { Reminder } from "../types";
+import {
+  apiGetReminders,
+  apiAddReminder,
+  apiCompleteReminder,
+  apiDeleteReminder,
+} from "../api";
 
-interface Props {
-  reminders: Reminder[];
-  newReminder: string;
-  repeatMinutes: number;
-  setNewReminder: (v: string) => void;
-  setRepeatMinutes: (v: number) => void;
-  onAdd: () => void;
-  onComplete: (id: number) => void;
-}
+export function RemindersPage() {
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [newText, setNewText] = useState("");
+  const [repeatEveryMin, setRepeatEveryMin] = useState(30);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-export function RemindersPage({
-  reminders,
-  newReminder,
-  repeatMinutes,
-  setNewReminder,
-  setRepeatMinutes,
-  onAdd,
-  onComplete,
-}: Props) {
+  // ---------- load from backend ----------
+  async function loadReminders() {
+    try {
+      setError(null);
+      const list = await apiGetReminders();
+      setReminders(list);
+    } catch (e: any) {
+      console.error(e);
+      setError("Could not load reminders");
+    }
+  }
+
+  useEffect(() => {
+    loadReminders();
+  }, []);
+
+  // ---------- handlers ----------
+
+  async function handleAdd() {
+    if (!newText.trim()) return;
+    setLoading(true);
+    try {
+      await apiAddReminder(newText.trim(), repeatEveryMin);
+      setNewText("");
+      await loadReminders();
+    } catch (e: any) {
+      console.error(e);
+      setError("Could not add reminder");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleComplete(id: number) {
+    setLoading(true);
+    try {
+      await apiCompleteReminder(id);
+      await loadReminders();
+    } catch (e: any) {
+      console.error(e);
+      setError("Could not complete reminder");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDelete(id: number) {
+    setLoading(true);
+    try {
+      await apiDeleteReminder(id);
+      await loadReminders();
+    } catch (e: any) {
+      console.error(e);
+      setError("Could not delete reminder");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="page-content fade-in">
-      <h2 className="section-title">Reminders</h2>
+    <div className="page">
+      <h1>Reminders</h1>
 
-      <div className="reminder-input">
+      {error && <div className="error">{error}</div>}
+
+      <div className="reminder-input-row">
         <input
-          className="input"
           placeholder="New reminder..."
-          value={newReminder}
-          onChange={(e) => setNewReminder(e.target.value)}
+          value={newText}
+          onChange={(e) => setNewText(e.target.value)}
         />
 
         <select
-          className="select"
-          value={repeatMinutes}
-          onChange={(e) => setRepeatMinutes(Number(e.target.value))}
+          value={repeatEveryMin}
+          onChange={(e) => setRepeatEveryMin(Number(e.target.value))}
         >
           <option value={15}>Every 15 min</option>
           <option value={30}>Every 30 min</option>
           <option value={60}>Every 60 min</option>
         </select>
 
-        <button onClick={onAdd} className="button-small">
+        <button onClick={handleAdd} disabled={loading}>
           Add
         </button>
       </div>
 
-      {reminders.map((r) => (
-        <div key={r.id} className="list-item">
-          <span>
-            {r.text} • {r.repeatEveryMin} min
-          </span>
+      {loading && <div className="loading">Loading…</div>}
 
-          {!r.completed ? (
-            <button onClick={() => onComplete(r.id)} className="button-small">
-              Done
-            </button>
-          ) : (
-            <span className="completed">Completed</span>
-          )}
-        </div>
-      ))}
+      <div className="reminder-list">
+        {reminders.map((r) => (
+          <div key={r.id} className="list-item">
+            <span>
+              {r.text} • {r.interval_min} min
+            </span>
+
+            <div>
+              {!r.completed ? (
+                <button onClick={() => handleComplete(r.id)}>Done</button>
+              ) : (
+                <span className="completed">Completed</span>
+              )}
+
+              <button onClick={() => handleDelete(r.id)} className="danger">
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
